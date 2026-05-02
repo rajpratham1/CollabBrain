@@ -1,0 +1,38 @@
+<header class="page-header">
+  <div class="brand-mark">
+    <img src="/favicon.svg" class="brand-icon" alt="CollabBrain logo" />
+    <div class="brand-copy">
+      <strong>CollabBrain</strong>
+      <span>Realtime collaboration command center</span>
+    </div>
+  </div>
+
+  <div class="top-actions">
+    <%= if assigns[:current_user] do %>
+      <span class="user-chip">
+        <strong><%= @current_user.display_name %></strong>
+      </span>
+      <.link class="secondary-link" navigate={~p"/workspaces/#{CollabBrain.AppConfig.default_workspace_id()}"}>Workspace</.link>
+      <form action={~p"/logout"} method="post">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="_method" value="delete" />
+        <button type="submit">Sign out</button>
+      </form>
+    <% else %>
+      <span class="status-pill">Authentication required for workspace access</span>
+    <% end %>
+  </div>
+</header>
+
+<div class="flash-wrap">
+  <%= if Phoenix.Flash.get(@flash, :info) do %>
+    <div class="flash flash-info"><%= Phoenix.Flash.get(@flash, :info) %></div>
+  <% end %>
+  <%= if Phoenix.Flash.get(@flash, :error) do %>
+    <div class="flash flash-error"><%= Phoenix.Flash.get(@flash, :error) %></div>
+  <% end %>
+</div>
+
+<main class="page">
+  {@inner_content}
+</main>

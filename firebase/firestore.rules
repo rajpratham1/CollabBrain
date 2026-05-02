@@ -1,0 +1,376 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function workspaceMember(workspaceId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+    }
+
+    function workspaceRole(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isWorkspaceAdmin(workspaceId) {
+      return workspaceMember(workspaceId) &&
+        workspaceRole(workspaceId) in ['owner', 'admin'];
+    }
+
+    function isTimestamp(value) {
+      return value is timestamp;
+    }
+
+    function isWorkspaceStatus(value) {
+      return value in ['active', 'invited', 'suspended'];
+    }
+
+    function validWorkspaceRole(value) {
+      return value in ['owner', 'admin', 'member', 'viewer'];
+    }
+
+    match /users/{uid} {
+      allow read, update: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly([
+          'email',
+          'display_name',
+          'avatar_url',
+          'headline',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.email is string &&
+        request.resource.data.display_name is string &&
+        request.resource.data.avatar_url is string &&
+        request.resource.data.headline is string &&
+        request.resource.data.display_name.size() <= 80 &&
+        request.resource.data.headline.size() <= 160 &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow update: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.display_name is string &&
+        request.resource.data.avatar_url is string &&
+        request.resource.data.headline is string &&
+        isTimestamp(request.resource.data.updated_at);
+      allow delete: if false;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasOnly([
+          'name',
+          'slug',
+          'owner_id',
+          'member_count',
+          'active_users',
+          'open_documents',
+          'channels_count',
+          'typing_users',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.owner_id == request.auth.uid &&
+        request.resource.data.name is string &&
+        request.resource.data.slug is string &&
+        request.resource.data.member_count is int &&
+        request.resource.data.member_count >= 1 &&
+        request.resource.data.active_users is int &&
+        request.resource.data.open_documents is int &&
+        request.resource.data.channels_count is int &&
+        request.resource.data.typing_users is int &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow update: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.owner_id == resource.data.owner_id &&
+        request.resource.data.member_count is int &&
+        request.resource.data.active_users is int &&
+        request.resource.data.open_documents is int &&
+        request.resource.data.channels_count is int &&
+        request.resource.data.typing_users is int;
+      allow delete: if false;
+    }
+
+    match /workspaces/{workspaceId}/members/{uid} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'role',
+          'status',
+          'display_name',
+          'headline',
+          'joined_at',
+          'last_active_at'
+        ]) &&
+        validWorkspaceRole(request.resource.data.role) &&
+        isWorkspaceStatus(request.resource.data.status) &&
+        request.resource.data.display_name is string &&
+        request.resource.data.headline is string &&
+        isTimestamp(request.resource.data.joined_at) &&
+        isTimestamp(request.resource.data.last_active_at);
+      allow update: if isWorkspaceAdmin(workspaceId) ||
+        (isSignedIn() && request.auth.uid == uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.display_name is string &&
+          request.resource.data.headline is string);
+      allow delete: if isWorkspaceAdmin(workspaceId) && workspaceRole(workspaceId) != 'viewer';
+    }
+
+    match /workspaces/{workspaceId}/invites/{inviteId} {
+      allow read: if isWorkspaceAdmin(workspaceId);
+      allow create: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'email',
+          'role',
+          'status',
+          'invited_by',
+          'created_at',
+          'expires_at'
+        ]) &&
+        request.resource.data.email is string &&
+        validWorkspaceRole(request.resource.data.role) &&
+        request.resource.data.status in ['pending', 'accepted', 'expired'] &&
+        request.resource.data.invited_by == request.auth.uid &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.expires_at);
+      allow update: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.invited_by == resource.data.invited_by;
+      allow delete: if isWorkspaceAdmin(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/channels/{channelId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create, update: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'name',
+          'kind',
+          'topic',
+          'created_by',
+          'unread_count',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.kind in ['public', 'private'] &&
+        request.resource.data.created_by is string &&
+        request.resource.data.name is string &&
+        request.resource.data.topic is string &&
+        request.resource.data.unread_count is int &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow delete: if isWorkspaceAdmin(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/channels/{channelId}/messages/{messageId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'body',
+          'author_id',
+          'author_name',
+          'kind',
+          'inserted_at',
+          'edited_at'
+        ]) &&
+        request.resource.data.author_id == request.auth.uid &&
+        request.resource.data.author_name is string &&
+        request.resource.data.body is string &&
+        (
+          request.resource.data.kind == 'text' ||
+          (request.resource.data.kind == 'system' && isWorkspaceAdmin(workspaceId))
+        ) &&
+        request.resource.data.body.size() <= 4000 &&
+        isTimestamp(request.resource.data.inserted_at) &&
+        (request.resource.data.edited_at == null || isTimestamp(request.resource.data.edited_at));
+      allow update: if workspaceMember(workspaceId) &&
+        resource.data.author_id == request.auth.uid &&
+        request.resource.data.author_id == resource.data.author_id &&
+        request.resource.data.author_name == resource.data.author_name &&
+        request.resource.data.kind == resource.data.kind &&
+        request.resource.data.inserted_at == resource.data.inserted_at;
+      allow delete: if isWorkspaceAdmin(workspaceId) ||
+        (workspaceMember(workspaceId) && resource.data.author_id == request.auth.uid);
+    }
+
+    match /workspaces/{workspaceId}/documents/{documentId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'title',
+          'summary',
+          'body',
+          'revision',
+          'created_by',
+          'created_at',
+          'updated_at'
+        ]) &&
+        request.resource.data.created_by == request.auth.uid &&
+        request.resource.data.title is string &&
+        request.resource.data.summary is string &&
+        request.resource.data.body is string &&
+        request.resource.data.revision is int &&
+        request.resource.data.revision >= 0 &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow update: if workspaceMember(workspaceId) &&
+        request.resource.data.created_by == resource.data.created_by &&
+        request.resource.data.revision is int &&
+        request.resource.data.revision >= resource.data.revision;
+      allow delete: if isWorkspaceAdmin(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/documents/{documentId}/operations/{operationId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'author_id',
+          'client_id',
+          'type',
+          'offset',
+          'text',
+          'length',
+          'base_revision',
+          'applied_revision',
+          'inserted_at'
+        ]) &&
+        request.resource.data.author_id == request.auth.uid &&
+        request.resource.data.client_id is string &&
+        request.resource.data.type in ['insert', 'delete'] &&
+        request.resource.data.offset is int &&
+        request.resource.data.offset >= 0 &&
+        request.resource.data.text is string &&
+        request.resource.data.length is int &&
+        request.resource.data.length >= 0 &&
+        request.resource.data.base_revision is int &&
+        request.resource.data.applied_revision is int &&
+        request.resource.data.applied_revision >= request.resource.data.base_revision &&
+        isTimestamp(request.resource.data.inserted_at);
+      allow update, delete: if false;
+    }
+
+    match /workspaces/{workspaceId}/presence/{uid} {
+      allow read: if workspaceMember(workspaceId);
+      allow create, update: if workspaceMember(workspaceId) &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly([
+          'status',
+          'display_name',
+          'active_channel_id',
+          'active_document_id',
+          'active_paragraph_id',
+          'huddle_room_id',
+          'huddle_status',
+          'typing_channel_id',
+          'typing_document_id',
+          'last_heartbeat_at'
+        ]) &&
+        request.resource.data.status in ['online', 'idle', 'offline'] &&
+        request.resource.data.display_name is string &&
+        (request.resource.data.active_paragraph_id == null || request.resource.data.active_paragraph_id is string) &&
+        (request.resource.data.huddle_room_id == null || request.resource.data.huddle_room_id is string) &&
+        (request.resource.data.huddle_status == null || request.resource.data.huddle_status in ['idle', 'speaking', 'muted']) &&
+        isTimestamp(request.resource.data.last_heartbeat_at);
+      allow delete: if request.auth.uid == uid || isWorkspaceAdmin(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/kanban_boards/{boardId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create, update: if isWorkspaceAdmin(workspaceId) &&
+        request.resource.data.keys().hasOnly(['name', 'columns', 'created_at', 'updated_at']) &&
+        request.resource.data.columns is list &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow delete: if isWorkspaceAdmin(workspaceId);
+    }
+
+    match /workspaces/{workspaceId}/kanban_boards/{boardId}/tasks/{taskId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create, update: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'title', 'description', 'status', 'assignee_id', 'priority', 'order',
+          'attachment_urls', 'created_at', 'updated_at'
+        ]) &&
+        request.resource.data.status is string &&
+        request.resource.data.priority in ['low', 'medium', 'high', 'urgent'] &&
+        request.resource.data.order is int &&
+        request.resource.data.attachment_urls is list &&
+        isTimestamp(request.resource.data.created_at) &&
+        isTimestamp(request.resource.data.updated_at);
+      allow delete: if workspaceMember(workspaceId);
+    }
+
+    match /direct_messages/{dmId} {
+      function isDmParticipant() {
+        return isSignedIn() && (request.auth.uid in resource.data.participant_ids);
+      }
+      allow read: if isDmParticipant();
+      allow create: if isSignedIn() &&
+        request.resource.data.participant_ids is list &&
+        request.auth.uid in request.resource.data.participant_ids &&
+        request.resource.data.participant_ids.size() == 2;
+      allow update: if isDmParticipant() &&
+        request.resource.data.participant_ids == resource.data.participant_ids;
+    }
+
+    match /direct_messages/{dmId}/messages/{messageId} {
+      allow read: if isSignedIn() &&
+        exists(/databases/$(database)/documents/direct_messages/$(dmId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/direct_messages/$(dmId)).data.participant_ids;
+      allow create: if isSignedIn() &&
+        exists(/databases/$(database)/documents/direct_messages/$(dmId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/direct_messages/$(dmId)).data.participant_ids &&
+        request.resource.data.author_id == request.auth.uid &&
+        isTimestamp(request.resource.data.inserted_at);
+    }
+
+    match /workspaces/{workspaceId}/audit_events/{eventId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly([
+          'kind',
+          'title',
+          'detail',
+          'actor_id',
+          'inserted_at'
+        ]) &&
+        request.resource.data.kind in ['chat', 'document', 'presence', 'deploy', 'membership'] &&
+        request.resource.data.title is string &&
+        request.resource.data.detail is string &&
+        request.resource.data.actor_id == request.auth.uid &&
+        isTimestamp(request.resource.data.inserted_at);
+      allow update, delete: if false;
+    }
+    // 📈 Activity Pulse
+    match /workspaces/{workspaceId}/activity/{eventId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly(['kind', 'title', 'detail', 'actor_name', 'inserted_at']);
+    }
+
+    // 🎨 Shared Whiteboard
+    match /workspaces/{workspaceId}/whiteboards/{boardId} {
+      allow read: if workspaceMember(workspaceId);
+      allow write: if workspaceMember(workspaceId);
+    }
+
+    // 📋 Kanban Tasks
+    match /workspaces/{workspaceId}/tasks/{taskId} {
+      allow read: if workspaceMember(workspaceId);
+      allow write: if workspaceMember(workspaceId);
+    }
+
+    // 📁 Smart File Vault
+    match /workspaces/{workspaceId}/files/{fileId} {
+      allow read: if workspaceMember(workspaceId);
+      allow create: if workspaceMember(workspaceId) &&
+        request.resource.data.keys().hasOnly(['name', 'url', 'size', 'type', 'uploaded_by', 'inserted_at']);
+    }
+  }
+}

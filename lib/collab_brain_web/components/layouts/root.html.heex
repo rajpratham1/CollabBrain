@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#08111f" />
+    <title>CollabBrain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg: #030712;
+        --panel: rgba(17, 24, 39, 0.7);
+        --border: rgba(255, 255, 255, 0.1);
+        --brand: #38bdf8;
+        --brand-glow: rgba(56, 189, 248, 0.25);
+        --text: #f9fafb;
+        --muted: #9ca3af;
+        --accent: #2dd4bf;
+        --danger: #f43f5e;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Outfit', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        background-image: 
+          radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
+          radial-gradient(circle at 100% 100%, rgba(45, 212, 191, 0.1) 0%, transparent 40%);
+        min-height: 100vh;
+      }
+
+      h1, h2, h3, h4 { margin: 0; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+      p { color: var(--muted); }
+      .eyebrow { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--brand); letter-spacing: 0.1em; margin-bottom: 4px; }
+
+      /* Layout */
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.2rem 2rem;
+        background: rgba(3, 7, 18, 0.85);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        gap: 1.5rem;
+      }
+      .brand-mark { display: flex; align-items: center; gap: 12px; }
+      .brand-icon { width: 40px; height: 40px; border-radius: 12px; box-shadow: 0 0 25px var(--brand-glow); }
+      .brand-copy strong { display: block; font-size: 1.2rem; line-height: 1; }
+      .brand-copy span { font-size: 0.8rem; color: var(--muted); }
+
+      .workspace-shell {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        min-height: calc(100vh - 70px);
+      }
+
+      /* Sidebar */
+      .workspace-sidebar {
+        background: rgba(17, 24, 39, 0.4);
+        border-right: 1px solid var(--border);
+        padding: 2rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 2.5rem;
+      }
+      .sidebar-section { display: flex; flex-direction: column; gap: 0.75rem; }
+      .section-title { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding-left: 8px; }
+
+      .nav-pill {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-radius: 14px;
+        text-decoration: none;
+        color: var(--muted);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        font-weight: 500;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid transparent;
+      }
+      .nav-pill:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); border-color: var(--border); transform: translateX(4px); }
+      .nav-pill.active { background: var(--brand-glow); color: var(--brand); border-color: rgba(56, 189, 248, 0.3); }
+
+      /* Toast Notifications */
+      .flash-wrap {
+        position: fixed; top: 2rem; left: 50%; transform: translateX(-50%);
+        z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+        pointer-events: none; width: 100%; max-width: 450px;
+      }
+      .flash {
+        padding: 16px 24px; border-radius: 16px; font-weight: 600;
+        backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        animation: toastIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        pointer-events: auto;
+      }
+      .flash-info { background: rgba(56, 189, 248, 0.2); color: var(--brand); border-color: var(--brand-glow); }
+      .flash-error { background: rgba(244, 63, 94, 0.2); color: #fb7185; border-color: rgba(244, 63, 94, 0.3); }
+
+      @keyframes toastIn {
+        0% { transform: translateY(-20px); opacity: 0; scale: 0.9; }
+        100% { transform: translateY(0); opacity: 1; scale: 1; }
+      }
+
+      /* Main */
+      .workspace-main { padding: 2.5rem; overflow-y: auto; }
+
+      /* Cards */
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 2rem;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 15px 45px -10px rgba(0,0,0,0.6);
+      }
+      .glow-card { border-color: rgba(56, 189, 248, 0.2); position: relative; overflow: hidden; }
+      .glow-card::before {
+        content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle, rgba(56, 189, 248, 0.05), transparent 70%);
+        pointer-events: none;
+      }
+
+      /* Buttons */
+      button, .primary-link, .secondary-link {
+        font-family: inherit; font-weight: 600; cursor: pointer;
+        padding: 12px 24px; border-radius: 14px; border: none;
+        display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+        text-decoration: none; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .primary-link, button[type="submit"] { 
+        background: var(--brand); color: #020617; 
+        box-shadow: 0 10px 25px -5px var(--brand-glow); 
+      }
+      .primary-link:hover { transform: translateY(-3px); box-shadow: 0 15px 35px -5px var(--brand-glow); }
+      
+      .secondary-link { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
+      .secondary-link:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+
+      /* Metrics */
+      .hero-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+      .metric-card { text-align: center; background: rgba(255,255,255,0.02); padding: 1.5rem; border-radius: 24px; border: 1px solid var(--border); }
+      .metric-card strong { display: block; font-size: 2.2rem; color: var(--brand); line-height: 1.2; }
+      .metric-card span { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+
+      /* Content Grids */
+      .workspace-content-grid { display: grid; grid-template-columns: 1fr 340px; gap: 2.5rem; }
+      .chat-messages { display: flex; flex-direction: column; gap: 1.25rem; max-height: 600px; overflow-y: auto; padding-right: 12px; }
+      .message-row { display: flex; gap: 16px; animation: slideUp 0.4s ease both; }
+      .avatar-bubble { width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--brand); border: 1px solid var(--border); flex-shrink: 0; }
+      .message-card { background: rgba(255,255,255,0.03); padding: 14px 18px; border-radius: 0 20px 20px 20px; flex: 1; border: 1px solid var(--border); }
+      .message-meta strong { color: var(--brand); font-size: 0.95rem; margin-right: 10px; }
+      .message-meta span { color: var(--muted); font-size: 0.8rem; }
+      .message-card p { margin: 6px 0 0; color: var(--text); font-size: 1rem; }
+
+      .composer-form { display: flex; gap: 12px; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+      input, textarea, select {
+        background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 14px;
+        padding: 14px 18px; color: var(--text); font-family: inherit; width: 100%; font-size: 1rem;
+      }
+      input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 5px var(--brand-glow); }
+
+      /* Kanban */
+      .kanban-board { display: flex; gap: 2rem; overflow-x: auto; padding-bottom: 1.5rem; }
+      .kanban-column { min-width: 320px; flex: 1; background: rgba(15, 23, 42, 0.4); border-radius: 28px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; border: 1px solid var(--border); }
+      .column-header { display: flex; justify-content: space-between; align-items: center; }
+      .task-card { cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid var(--border); }
+      .task-card:hover { transform: translateY(-8px) scale(1.02); border-color: var(--brand); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.7); }
+      .priority-tag { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 6px; padding: 2px 8px; border-radius: 6px; display: inline-block; background: rgba(255,255,255,0.05); }
+      .priority-tag.urgent { color: #fff; background: var(--danger); }
+      .priority-tag.high { color: #fb923c; }
+      .priority-tag.medium { color: #fbbf24; }
+      
+      /* Presence */
+      .presence-list { display: flex; flex-direction: column; gap: 1.25rem; }
+      .presence-item { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,0.02); border: 1px solid transparent; transition: all 0.2s ease; }
+      .presence-item:hover { background: rgba(255,255,255,0.05); border-color: var(--border); }
+      .status-pill { padding: 6px 12px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; background: rgba(255,255,255,0.05); color: var(--brand); border: 1px solid var(--border); }
+
+      /* Text Links */
+      .text-link { color: var(--brand); font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: opacity 0.2s; }
+      .text-link:hover { opacity: 0.8; text-decoration: underline; }
+
+      /* Auth Layout */
+      .auth-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2.5rem; max-width: 1100px; margin: 4rem auto; padding: 0 2rem; }
+      .auth-logo-wrap { display: flex; justify-content: center; margin-bottom: 2rem; }
+      .auth-logo { width: 64px; height: 64px; border-radius: 18px; box-shadow: 0 0 30px var(--brand-glow); }
+
+      /* Forms */
+      .stack-form { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.5rem; }
+      .form-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
+
+      /* Document Paragraphs */
+      .paragraph { border-left: 3px solid transparent; padding-left: 15px !important; margin-bottom: 1.5rem; position: relative; }
+      .paragraph.editing-now { border-left-color: var(--brand); background: rgba(56, 189, 248, 0.05); }
+
+      /* Success Messages */
+      .success-message { padding: 1.5rem; border-radius: 18px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; margin-top: 1.5rem; }
+
+      @keyframes huddle-pulse { 0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.5); } 70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0); } }
+
+      /* Mobile */
+      @media (max-width: 1024px) {
+        .workspace-shell { grid-template-columns: 1fr; }
+        .workspace-sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+        .workspace-content-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        .page-header { padding: 0.8rem 1rem; flex-direction: row; gap: 10px; }
+        .brand-copy span { display: none; }
+        .top-actions { font-size: 0.85rem; }
+        .landing-shell { padding: 2.5rem 1.5rem !important; margin: 1rem auto !important; }
+        .hero-stat-grid { grid-template-columns: 1fr; }
+        .metric-card { padding: 1rem; }
+        h1 { font-size: 2.8rem !important; }
+        .workspace-main { padding: 1.5rem 1rem; }
+        .card { padding: 1.5rem; }
+      }
+
+      /* Kanban Board */
+      .kanban-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; align-items: start; }
+      .kanban-column { background: rgba(255,255,255,0.02); border-radius: 28px; padding: 1.5rem; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 1.5rem; }
+      .column-header { display: flex; justify-content: space-between; align-items: center; padding: 0 0.5rem; }
+      .column-header h3 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+      
+      .priority-tag { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+      .priority-tag.urgent { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
+      
+      /* Google Button */
+      .auth-divider { display: flex; align-items: center; text-align: center; margin: 1.5rem 0; color: var(--muted); font-size: 0.8rem; }
+      .auth-divider::before, .auth-divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border); }
+      .auth-divider span { padding: 0 10px; font-weight: 700; }
+      
+      .google-btn {
+        width: 100%; background: #ffffff; color: #1f2937 !important;
+        display: flex; align-items: center; justify-content: center; gap: 12px;
+        padding: 12px; border-radius: 14px; font-weight: 600; border: none;
+        cursor: pointer; transition: all 0.2s; margin-top: 1rem;
+      }
+      .google-btn:hover { background: #f3f4f6; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+
+      @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      .slide-up { animation: slideUp 0.5s ease both; }
+      .huddle-speaking { box-shadow: 0 0 0 4px #10b981; animation: huddle-pulse 1.5s infinite; }
+    </style>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    
+    <script>
+      // Firebase configuration from server-side
+      const firebaseConfig = {
+        apiKey: "<%= Application.get_env(:collab_brain, :firebase_web_api_key) %>",
+        authDomain: "<%= Application.get_env(:collab_brain, :firebase_project_id) %>.firebaseapp.com",
+        projectId: "<%= Application.get_env(:collab_brain, :firebase_project_id) %>"
+      };
+
+      // Initialize Firebase
+      if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "nil") {
+        firebase.initializeApp(firebaseConfig);
+      }
+
+      function signInWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider)
+          .then((result) => {
+            const user = result.user;
+            // Submit the hidden form
+            const form = document.getElementById('google-auth-form');
+            if (form) {
+              document.getElementById('google-uid').value = user.uid;
+              document.getElementById('google-email').value = user.email;
+              document.getElementById('google-display-name').value = user.displayName;
+              form.submit();
+            }
+          })
+          .catch((error) => {
+            console.error("Google Auth Error:", error);
+            alert("Google Sign-in failed. Please ensure Google Auth is enabled in Firebase Console.");
+          });
+      }
+    </script>
+  </head>
+  <body>
+    {@inner_content}
+    <script src="/phoenix.min.js"></script>
+    <script src="/phoenix_live_view.min.js"></script>
+    <script>
+      (function() {
+        function initSocket() {
+          // Phoenix 1.7 exposes window.Phoenix.Socket
+          // LiveView 1.x exposes window.LiveView.LiveSocket  
+          var Socket = window.Phoenix && window.Phoenix.Socket;
+          var LiveSocket = window.LiveView && window.LiveView.LiveSocket;
+
+          if (!Socket || !LiveSocket) {
+            setTimeout(initSocket, 50);
+            return;
+          }
+
+          var csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
+          var liveSocket = new LiveSocket("/live", Socket, {
+            params: {_csrf_token: csrfToken},
+            hooks: {
+              Whiteboard: {
+                mounted() {
+                  var canvas = this.el;
+                  var ctx = canvas.getContext('2d');
+                  var drawing = false;
+                  var color = '#38bdf8';
+
+                  function resize() {
+                    canvas.width = canvas.parentElement.clientWidth;
+                    canvas.height = canvas.parentElement.clientHeight;
+                  }
+                  window.addEventListener('resize', resize);
+                  resize();
+
+                  this.handleEvent("set_color", function(data) { color = data.color; });
+                  this.handleEvent("clear_board", function() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  });
+                  this.handleEvent("remote_draw", function(event) {
+                    ctx.strokeStyle = event.color || color;
+                    ctx.lineWidth = 2;
+                    ctx.lineCap = 'round';
+                    if (event.type === 'start') {
+                      ctx.beginPath(); ctx.moveTo(event.x, event.y);
+                    } else {
+                      ctx.lineTo(event.x, event.y); ctx.stroke();
+                    }
+                  });
+
+                  canvas.addEventListener('mousedown', function(e) {
+                    drawing = true;
+                    ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY);
+                  });
+                  canvas.addEventListener('mousemove', function(e) {
+                    if (!drawing) return;
+                    ctx.lineTo(e.offsetX, e.offsetY);
+                    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+                  });
+                  canvas.addEventListener('mouseup', function() { drawing = false; ctx.closePath(); });
+                }
+              }
+            }
+          });
+
+          liveSocket.connect();
+          window.liveSocket = liveSocket;
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", initSocket);
+        } else {
+          initSocket();
+        }
+      })();
+
+      window.addEventListener("phx:copy", function(e) {
+        var val = e.detail.text || (document.querySelector(e.detail.to) && document.querySelector(e.detail.to).value);
+        if (val) {
+          navigator.clipboard.writeText(val).then(function() {
+            var btn = e.target;
+            var orig = btn.innerText;
+            btn.innerText = "✅ Copied!";
+            setTimeout(function() { btn.innerText = orig; }, 2000);
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

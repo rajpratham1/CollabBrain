@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CollabBrain">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#5eead4"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06111f"/>
+      <stop offset="100%" stop-color="#0f1d33"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="28" fill="url(#bg)"/>
+  <path d="M40 39h27c18 0 29 10 29 25 0 16-11 25-29 25H40z" fill="url(#ink)" opacity=".18"/>
+  <path d="M39 36h29c17 0 29 11 29 28S85 92 68 92H39z" fill="#08111f"/>
+  <path d="M56 49c8 0 13 3 13 9 0 4-2 7-6 8 6 1 10 5 10 11 0 8-7 13-18 13H49V49zm-1 16c5 0 8-2 8-6s-3-5-8-5h-1v11zm1 20c7 0 11-3 11-8 0-4-4-7-11-7h-2v15z" fill="#dffbff"/>
+  <circle cx="90" cy="38" r="8" fill="#dffbff" opacity=".92"/>
+</svg>
+
