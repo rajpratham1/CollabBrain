@@ -107,6 +107,6 @@ mix phx.server
 ---
 
 <div align="center">
-  <p>Built with ❤️ by the CollabBrain Team</p>
+  <p>Built with ❤️ by the rajpratham1</p>
   <p><i>"The future of collaboration is real-time, or it isn't the future."</i></p>
 </div>
